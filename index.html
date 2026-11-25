@@ -1,0 +1,50 @@
+const SHEET_NAME = 'Orders';
+
+function doGet(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return ContentService.createTextOutput(JSON.stringify([]))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  const headers = data[0];
+  const rows = data.slice(1).map((row, idx) => {
+    const obj = { rowNumber: idx + 2 };
+    headers.forEach((h, i) => { obj[h] = row[i]; });
+    return obj;
+  });
+  return ContentService.createTextOutput(JSON.stringify(rows))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const body = JSON.parse(e.postData.contents);
+
+  if (body.action === 'updateStatus' && body.rowNumber && body.status) {
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const statusCol = headers.indexOf('สถานะ') + 1;
+    if (statusCol > 0) {
+      sheet.getRange(body.rowNumber, statusCol).setValue(body.status);
+    }
+    return ContentService.createTextOutput(JSON.stringify({ status: 'updated' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const orderId = 'ORD-' + Date.now();
+  const timestamp = new Date();
+  sheet.appendRow([
+    orderId,
+    timestamp,
+    body.customerName,
+    body.phone,
+    body.address,
+    body.sku1Qty,
+    body.sku2Qty,
+    body.totalPrice,
+    'รอหยิบของ'
+  ]);
+
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', orderId }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
