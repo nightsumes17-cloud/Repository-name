@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ร้านบะหมี่กึ่งสำเร็จรูป (2 SKUs)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 820px; margin: 24px auto; padding: 0 16px; line-height: 1.5; }
+    .box { border: 1px solid #ccc; border-radius: 8px; padding: 16px; margin-top: 16px; }
+    .sku { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
+    .sku img { width: 110px; height: 110px; object-fit: cover; border-radius: 6px; }
+    input, textarea { width: 100%; box-sizing: border-box; padding: 8px; margin: 4px 0 12px; }
+    button { padding: 8px 14px; cursor: pointer; margin-right: 6px; }
+    .order-card { border: 1px dashed #333; padding: 12px; margin: 10px 0; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h2>🍜 บะหมี่กึ่งสำเร็จรูป</h2>
+  <button onclick="switchTab('shop')">หน้าร้านสั่งซื้อ</button>
+  <button onclick="switchTab('ops')">หยิบของ & ใบจ่าหน้าพัสดุ</button>
+
+  <div id="shop" class="box">
+    <h3>เลือกสินค้า</h3>
+    <div class="sku">
+      <img src="images.jpeg" alt="SKU-01">
+      <div>
+        <strong>SKU-01 รสต้มยำกุ้ง (65 บาท)</strong><br>
+        จำนวน: <input id="q1" type="number" min="0" value="1" style="width:90px;">
+      </div>
+    </div>
+    <div class="sku">
+      <img src="20241225103844_24CF8A94-1872-4F53-8297-FCB3017D3821.png" alt="SKU-02">
+      <div>
+        <strong>SKU-02 รสหมูสับ (60 บาท)</strong><br>
+        จำนวน: <input id="q2" type="number" min="0" value="0" style="width:90px;">
+      </div>
+    </div>
+
+    <form onsubmit="submitOrder(event)">
+      <label>ชื่อลูกค้า</label>
+      <input id="name" required>
+      <label>เบอร์โทร</label>
+      <input id="phone" required>
+      <label>ที่อยู่จ่าหน้าพัสดุ</label>
+      <textarea id="addr" rows="3" required></textarea>
+      <button type="submit">ยืนยันคำสั่งซื้อ</button>
+    </form>
+    <p id="statusMsg"></p>
+  </div>
+
+  <div id="ops" class="box" style="display:none;">
+    <h3>รายการหยิบของ & ใบจ่าหน้าพัสดุ</h3>
+    <button onclick="loadOrders()">รีเฟรชรายการ</button>
+    <button onclick="window.print()">พิมพ์หน้านี้</button>
+    <div id="ordersContainer">กำลังโหลดข้อมูล...</div>
+  </div>
+
+  <script>
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxVrtybHnL3tW_fLGGJtQp1H2arlytJ5cqgVo6FKRhKMIA5ylbO20HjP3LuRR2obzhB/exec';
+
+    function switchTab(tab) {
+      document.getElementById('shop').style.display = tab === 'shop' ? 'block' : 'none';
+      document.getElementById('ops').style.display = tab === 'ops' ? 'block' : 'none';
+      if (tab === 'ops') loadOrders();
+    }
+
+    async function submitOrder(e) {
+      e.preventDefault();
+      const s1 = Number(document.getElementById('q1').value) || 0;
+      const s2 = Number(document.getElementById('q2').value) || 0;
+      const payload = {
+        customerName: document.getElementById('name').value.trim(),
+        phone: document.getElementById('phone').value.trim(),
+        address: document.getElementById('addr').value.trim(),
+        sku1Qty: s1,
+        sku2Qty: s2,
+        totalPrice: s1 * 65 + s2 * 60
+      };
+
+      await fetch(API_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify(payload)
+      });
+
+      document.getElementById('statusMsg').textContent = 'ส่งคำสั่งซื้อเรียบร้อยแล้ว';
+      e.target.reset();
+    }
+
+    async function loadOrders() {
+      const container = document.getElementById('ordersContainer');
+      container.textContent = 'กำลังโหลดข้อมูล...';
+      try {
+        const res = await fetch(API_URL);
+        const rows = await res.json();
+        if (!rows.length) {
+          container.textContent = 'ยังไม่มีคำสั่งซื้อ';
+          return;
+        }
+        container.innerHTML = rows.map(r => `
+          <div class="order-card">
+            <strong>เลขออเดอร์:</strong> ${r['เลขออเดอร์'] || '-'} | <strong>สถานะ:</strong> ${r['สถานะ'] || '-'}<br>
+            <strong>ผู้รับ:</strong> ${r['ชื่อลูกค้า'] || '-'} (${r['เบอร์โทร'] || '-'})<br>
+            <strong>ที่อยู่จัดส่ง:</strong> ${r['ที่อยู่จ่าหน้าพัสดุ'] || '-'}<br>
+            <strong>หยิบสินค้า:</strong> SKU-01 = ${r['จำนวนSKUที่1'] || 0} | SKU-02 = ${r['จำนวนSKUที่2'] || 0} | <strong>รวม:</strong> ${r['ราคารวม'] || 0} บาท<br><br>
+            <button onclick="updateStatus(${r.rowNumber}, 'แพ็กแล้ว')">ทำเครื่องหมายว่าแพ็กแล้ว</button>
+          </div>
+        `).join('');
+      } catch (err) {
+        container.textContent = 'โหลดข้อมูลไม่สำเร็จ ตรวจสอบการตั้งค่า Web App (Anyone)';
+      }
+    }
+
+    async function updateStatus(rowNumber, status) {
+      await fetch(API_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify({ action: 'updateStatus', rowNumber, status })
+      });
+      setTimeout(loadOrders, 600);
+    }
+  </script>
+</body>
+</html>
